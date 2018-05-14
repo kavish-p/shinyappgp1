@@ -23,7 +23,13 @@ ui <- fluidPage(
                     line-height: 1.1;
                     color: #000000;
                     }
-                    
+
+                    #firstPlot{height:80vh !important;}
+                    #regularPlot{height:80vh !important;}
+                    #distPlot{height:80vh !important;}
+                    #secondPlot{height:80vh !important;}
+                    #boxPlot{height:80vh !important;}
+
                     "))
     ),
   # Application title
@@ -39,6 +45,7 @@ ui <- fluidPage(
                     "Jet Fuel Spot" = "jet_fuel_spot", "Finance Crisis"="financial_crisis",
                     "Gold Price - WTI Spot Ratio"="gold_price_wti_spot_ratio",
                     "Gold Price - Brent Spot Ratio"="gold_price_brent_spot_ratio")),
+      verbatimTextOutput("custom_text"),
       checkboxGroupInput(inputId="choices", "Select Variables [2][3][4][5]", 
                          c("Gold Price" = "gold_price","Gasoline Spot" = "gasoline_spot","WTI Spot" = "wti_spot",
                            "Brent Spot" = "brent_spot",
@@ -48,23 +55,24 @@ ui <- fluidPage(
                          selected = c("gold_price")),
       sliderInput("slider2", label = h3("Timeline Range"), min = 1990, 
                   max = 2018, value = c(1990,2018), sep = ""),
-      submitButton("Update Charts")
+      #submitButton("Update Charts"), hr(), 
+      actionButton("help", "Help")
     ),
     
     # space for plot(s)
     mainPanel(
       tabsetPanel(
         tabPanel(
-          "[1] Line Graph - Regression",plotlyOutput("firstPlot")
+          "[1] Line Graph - Regression",plotlyOutput("firstPlot",height = "100%",width = "100%")
         ),
         tabPanel(
-          "[2] Original Line Graph",plotlyOutput("regularPlot")
+          "[2] Original Line Graph",plotlyOutput("regularPlot",height = "100%",width = "100%")
         ),
         tabPanel(
-          "[3] Normalized Line Graph",plotlyOutput("distPlot")
+          "[3] Normalized Line Graph",plotlyOutput("distPlot",height = "100%",width = "100%")
         ),
         tabPanel(
-          "[4] Spark Line Graph",plotlyOutput("secondPlot")
+          "[4] Spark Line Graph",plotlyOutput("secondPlot",height = "100%",width = "100%")
         ),
         tabPanel(
           "[5] Box Plot",plotlyOutput("boxPlot")
@@ -138,14 +146,17 @@ server <- function(input, output) {
   
   # create line equation
   lm_eqn <- function(df){
+    
     m <- lm(value ~ time, df);
-    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
-                     list(a = format(coef(m)[1], digits = 2), 
-                          b = format(coef(m)[2], digits = 2), 
-                          r2 = format(summary(m)$r.squared, digits = 3)))
-    as.character(as.expression(eq));                 
+    # eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+    #                  list(a = format(coef(m)[1], digits = 2), 
+    #                       b = format(coef(m)[2], digits = 2), 
+    #                       r2 = format(summary(m)$r.squared, digits = 3)))
+    #as.character(as.expression(eq));
+    return (format(summary(m)$r.squared, digits = 3))
   }
   
+  output$custom_text <- renderText({paste("R-squared: ",lm_eqn(temp_action()))})
   
   saved <- geom_smooth(method='lm',formula=y~x)
   #render the regression plot
@@ -165,6 +176,11 @@ server <- function(input, output) {
   
   #render the original plot
   output$regularPlot <- renderPlotly({
+    
+    validate(
+      need(input$choices, 'Check at least one variable at the side panel!')
+    )
+    
     ggplot(original_action(), aes(x = time, y = value)) + 
       geom_line(aes(color = variable), size = 1) +
       theme_minimal() + labs(x = "Timeline", y="Original Value") +
@@ -189,6 +205,11 @@ server <- function(input, output) {
   
   #render the normalized plot
   output$distPlot <- renderPlotly({
+    
+    validate(
+      need(input$choices, 'Check at least one variable at the side panel!')
+    )
+    
     ggplot(action(), aes(x = time, y = value)) + 
       geom_line(aes(color = variable), size = 1) +
       theme_minimal() + labs(x = "Timeline", y="Normalized Value") +
@@ -224,6 +245,11 @@ server <- function(input, output) {
   #date filtering?
   
   output$secondPlot <- renderPlotly({
+    
+    validate(
+      need(input$choices, 'Check at least one variable at the side panel!')
+    )
+    
     ggplot(action2(), aes(x = time, y = value)) + 
       geom_line(aes(color = variable), size = 1) +
       theme_minimal() + labs(x = "Timeline", y="Normalized Value") +
@@ -249,6 +275,11 @@ server <- function(input, output) {
   })
   
   output$boxPlot <- renderPlotly({
+    
+    validate(
+      need(input$choices, 'Check at least one variable at the side panel!')
+    )
+    
     ggplot(boxplot_action(), aes(x = variable, y = value)) + 
       geom_boxplot() + 
       facet_wrap( ~ variable, scales="free") +
@@ -258,6 +289,21 @@ server <- function(input, output) {
   })
   
   ## end boxplot logic
+  
+  
+  ## help section :/ #
+  observeEvent(input$help, {
+    showModal(modalDialog(
+      title = "Help",
+      HTML("This app was designed to enable users to explore datasets and facilitate data analysis. Currently only time series datasets are compatible.<br><br>
+            1. Changing the regression variable will only affect Tab 1. The R-squared value of the regression line created is displayed at the side panel.<br><br>
+            2. Selecting the variables in the checkbox will only affect Tab 2 to Tab 5.<br><br>
+            3. Changing the timeline range will affect all of the plots.<br><br>
+            4. Changing any of the variables at the side panel will automatically regenerate all the affected plots.<br><br>
+            5. The Plotly features may be used to customise and download the generated plots.<br><br><br><br>
+            Created by Kavish Punchoo and Niraj Baxi")
+    ))
+  })
   
 }
 
